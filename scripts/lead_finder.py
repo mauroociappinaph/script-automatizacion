@@ -54,36 +54,40 @@ class MarketingLeadFinder(BaseScript):
 
                 log.info(f"Página cargada: '{page.title()}'")
 
-                # Selector de títulos en Bing: li.b_algo h2 a
+                # Selector de títulos en Bing
                 elements = page.query_selector_all("li.b_algo h2 a")
-                log.info(f"Leads encontrados: {len(elements)}")
+                log.info(f"Resultados brutos encontrados: {len(elements)}")
 
-                # Lista de palabras que suelen indicar anuncios o sitios no deseados
-                blacklist = ["amazon", "mercado libre", "shopee", "tiendanube", "anuncio", "patrocinado", "sponsored"]
+                # Lista negra de palabras y validación de industria
+                blacklist = ["amazon", "mercado libre", "shopee", "anuncio", "patrocinado", "sponsored"]
+                keywords = ["agencia", "marketing", "digital", "publicidad", "ads", "seo", "branding", "estudio", "comunicación", "estrategia"]
 
                 for el in elements:
-                    if len(leads_processed) >= 5: # Límite para el demo
+                    if len(leads_processed) >= 5: # Límite para el reporte
                         break
 
                     try:
                         agency_name = el.text_content().strip()
                         lower_name = agency_name.lower()
 
+                        log.debug(f"Evaluando: '{agency_name}'")
+
                         # 1. Filtro de Blacklist (Evitar Amazon, etc.)
                         if any(word in lower_name for word in blacklist):
-                            log.debug(f"Saltando resultado (blacklist): {agency_name}")
+                            log.debug(f"Saltando (blacklist/ad): {agency_name}")
                             continue
 
                         # 2. Validación de industria (Asegurar que sea marketing/agencia)
-                        keywords = ["agencia", "marketing", "digital", "publicidad", "ads", "seo", "branding"]
+                        # Si no tiene palabras clave en el título, a veces es una agencia específica (ej: 'Puent7')
+                        # Pero para el buscador automático, mejor pedir al menos una Keyword o filtrar menos agresivo
                         if not any(key in lower_name for key in keywords):
-                            log.debug(f"Saltando resultado (no parece agencia): {agency_name}")
+                            log.debug(f"Saltando (no parece agencia por nombre): {agency_name}")
                             continue
 
-                        if agency_name and len(agency_name) > 3:
-                            log.info(f"✅ Lead válido encontrado: {agency_name}")
+                        if len(agency_name) > 3:
+                            log.info(f"✅ Lead de CALIDAD detectado: {agency_name}")
 
-                            # Análisis de IA
+                            # Análisis de IA con OpenRouter (Gratis)
                             analysis = self.analyze_agency(agency_name, f"Agencia de marketing digital en {location}")
 
                             leads_processed.append({
@@ -94,7 +98,7 @@ class MarketingLeadFinder(BaseScript):
                     except Exception as e:
                         log.warning(f"Error procesando elemento: {e}")
 
-                log.info(f"Procesamiento finalizado. Total: {len(leads_processed)}")
+                log.info(f"Procesamiento finalizado. Total leads reales: {len(leads_processed)}")
 
         if leads_processed:
             # 1. Guardar CSV
