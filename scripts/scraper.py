@@ -10,8 +10,9 @@ class Scraper:
     Gestiona el ciclo de vida del navegador y contextos de forma segura.
     """
 
-    def __init__(self, headless: bool = True):
+    def __init__(self, headless: bool = True, proxy: dict = None):
         self.headless = headless
+        self.proxy = proxy # Formato: {"server": "http://ip:port", "username": "user", "password": "pwd"}
         self.pw = None
         self.browser = None
         self.context = None
@@ -27,10 +28,14 @@ class Scraper:
                 "--disable-setuid-sandbox"
             ]
         )
-        # Contexto con User Agent realista
-        self.context = self.browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
+        # Contexto con User Agent realista y Proxy opcional
+        context_args = {
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        if self.proxy:
+            context_args["proxy"] = self.proxy
+
+        self.context = self.browser.new_context(**context_args)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

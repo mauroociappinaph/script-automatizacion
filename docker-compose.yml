@@ -1,0 +1,17 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/.venv # Evitar que el venv local pise el del contenedor
+      - ./data:/app/data # Persistencia de reportes generados
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=production
+      - LOG_LEVEL=INFO
+    restart: always
+
+# El storage local se mapea para que al bajar el contenedor no pierdas los reportes.

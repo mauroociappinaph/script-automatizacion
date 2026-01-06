@@ -45,5 +45,15 @@ uv run python -m scripts.mi_automatizacion --parametro valor
 uv run fastapi dev api/main.py
 ```
 
+### Ejecutar con Docker (Recomendado)
+```bash
+# Construir y levantar todo el ecosistema
+docker-compose up --build -d
+
+# Ver logs en tiempo real
+docker-compose logs -f
+```
+La API estará disponible en `http://localhost:8000`.
+
 ## 📈 Roadmap & Tareas
 Consulta el archivo [TASK.md](./TASK.md) para ver el progreso del desarrollo.
