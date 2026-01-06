@@ -27,7 +27,10 @@ class MarketingLeadFinder(BaseScript):
         Agencia: {name}
         Descripción/Contexto: {description}
 
-        Responde en formato de lista corta:
+        Si el nombre NO parece ser una agencia de marketing (ej: Amazon, Mercado Libre, un anuncio genérico),
+        responde únicamente con la palabra: RECHAZAR.
+
+        Si es válida, responde en formato de lista corta:
         1. [Oportunidad 1]
         2. [Oportunidad 2]
         3. [Oportunidad 3]
@@ -49,66 +52,54 @@ class MarketingLeadFinder(BaseScript):
             search_url = f"https://www.bing.com/search?q=agencias+marketing+digital+{location}"
 
             if motor.safe_navigate(page, search_url):
-                # Esperamos un poco para renderizado
                 motor.human_wait(3, 5)
 
                 log.info(f"Página cargada: '{page.title()}'")
 
-                # Selector de títulos en Bing
-                elements = page.query_selector_all("li.b_algo h2 a")
-                log.info(f"Resultados brutos encontrados: {len(elements)}")
+                # Buscamos los bloques de resultados orgánicos (li.b_algo)
+                results = page.query_selector_all("li.b_algo")
+                log.info(f"Bloques de resultados encontrados: {len(results)}")
 
-                # Lista negra de palabras y validación de industria
-                blacklist = ["amazon", "mercado libre", "shopee", "anuncio", "patrocinado", "sponsored"]
-                keywords = ["agencia", "marketing", "digital", "publicidad", "ads", "seo", "branding", "estudio", "comunicación", "estrategia"]
-
-                for el in elements:
-                    if len(leads_processed) >= 5: # Límite para el reporte
+                for res in results:
+                    if len(leads_processed) >= 5:
                         break
 
                     try:
-                        agency_name = el.text_content().strip()
-                        lower_name = agency_name.lower()
-
-                        log.debug(f"Evaluando: '{agency_name}'")
-
-                        # 1. Filtro de Blacklist (Evitar Amazon, etc.)
-                        if any(word in lower_name for word in blacklist):
-                            log.debug(f"Saltando (blacklist/ad): {agency_name}")
+                        title_el = res.query_selector("h2 a")
+                        if not title_el:
                             continue
 
-                        # 2. Validación de industria (Asegurar que sea marketing/agencia)
-                        # Si no tiene palabras clave en el título, a veces es una agencia específica (ej: 'Puent7')
-                        # Pero para el buscador automático, mejor pedir al menos una Keyword o filtrar menos agresivo
-                        if not any(key in lower_name for key in keywords):
-                            log.debug(f"Saltando (no parece agencia por nombre): {agency_name}")
+                        agency_name = title_el.text_content().strip()
+                        log.debug(f"Candidato detectado: '{agency_name}'")
+
+                        # Análisis y Filtrado por IA (Más inteligente que keywords)
+                        analysis = self.analyze_agency(agency_name, f"Agencia de marketing digital en {location}")
+
+                        if "RECHAZAR" in analysis.upper():
+                            log.debug(f"Lead rechazado por la IA (No es agencia): {agency_name}")
                             continue
 
-                        if len(agency_name) > 3:
-                            log.info(f"✅ Lead de CALIDAD detectado: {agency_name}")
+                        log.info(f"✅ Lead VALIDADO por IA: {agency_name}")
 
-                            # Análisis de IA con OpenRouter (Gratis)
-                            analysis = self.analyze_agency(agency_name, f"Agencia de marketing digital en {location}")
-
-                            leads_processed.append({
-                                "AGENCIA": agency_name,
-                                "UBICACIÓN": location,
-                                "OPORTUNIDADES_IA": analysis.replace("\n", " ").strip()[:200] + "..."
-                            })
+                        leads_processed.append({
+                            "AGENCIA": agency_name,
+                            "UBICACIÓN": location,
+                            "OPORTUNIDADES_IA": analysis.replace("\n", " ").strip()[:200] + "..."
+                        })
                     except Exception as e:
-                        log.warning(f"Error procesando elemento: {e}")
+                        log.warning(f"Error procesando lead: {e}")
 
-                log.info(f"Procesamiento finalizado. Total leads reales: {len(leads_processed)}")
+                log.info(f"Procesamiento finalizado. Total leads validados: {len(leads_processed)}")
 
         if leads_processed:
             # 1. Guardar CSV
             df = DataEngine.create_dataframe(leads_processed)
-            DataEngine.save_output(df, f"leads_mkt_{location.lower()}", format="csv")
+            csv_path = DataEngine.save_output(df, f"leads_mkt_{location.lower()}", format="csv")
 
             # 2. Generar PDF
             pdf_path = os.path.abspath(f"data/processed/REPORTE_LEADS_MKT_{location.upper()}.pdf")
             ReportGenerator.to_pdf(leads_processed, f"Análisis de leads: Agencias MKT {location}", pdf_path)
-            log.success(f"Reporte PDF generado exitosamente: {pdf_path}")
+            log.success(f"Reporte PDF generado: {pdf_path}")
 
             return {
                 "status": "success",
