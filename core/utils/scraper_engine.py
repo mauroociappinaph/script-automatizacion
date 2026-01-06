@@ -1,5 +1,5 @@
 from playwright.sync_api import sync_playwright
-from playwright_stealth import stealth_sync
+from playwright_stealth import Stealth
 from core.utils.logger import log
 import random
 import time
@@ -52,7 +52,7 @@ class Scraper:
         Crea una nueva página aplicando el plugin de sigilo.
         """
         page = self.context.new_page()
-        stealth_sync(page)
+        Stealth().apply_stealth_sync(page)
         return page
 
     def human_wait(self, min_sec: float = 1.0, max_sec: float = 3.0):
