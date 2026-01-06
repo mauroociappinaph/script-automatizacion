@@ -70,16 +70,28 @@ class MarketingLeadFinder(BaseScript):
                     results = page.query_selector_all("div.algo")
                     log.info(f"Resultados potenciales encontrados: {len(results)}")
 
+                    if not results:
+                        log.warning("No se detectaron bloques 'div.algo'. Probando fallback 'h3 a'...")
+                        results = page.query_selector_all("h3 a")
+                        log.info(f"Fallback: {len(results)} enlaces directos encontrados.")
+
                     for res in results:
                         if len(leads_processed) >= 5: break # Límite para el demo
 
                         try:
-                            title_el = res.query_selector("h3 a")
-                            snippet_el = res.query_selector("div.compText") or res.query_selector("p")
+                            # Si res es el enlace directamente (fallback), lo usamos.
+                            # Si es un div (bloque), buscamos el enlace dentro.
+                            tag_name = res.evaluate("node => node.tagName").lower()
+                            title_el = res.query_selector("h3 a") if tag_name == "div" else res
 
                             if not title_el: continue
 
                             title = title_el.text_content().strip()
+
+                            snippet_el = None
+                            if tag_name == "div":
+                                snippet_el = res.query_selector("div.compText") or res.query_selector("p")
+
                             snippet = snippet_el.text_content().strip() if snippet_el else ""
 
                             # Filtro rápido de ruido (Amazon, Anuncios genéricos)
