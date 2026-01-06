@@ -9,110 +9,105 @@ import time
 
 class MarketingLeadFinder(BaseScript):
     """
-    Script comercial para encontrar agencias de marketing y analizar
-    sus oportunidades de automatización usando IA.
+    Script comercial para encontrar agencias de marketing de ALTA CALIDAD.
+    Usa Playwright como motor de navegación y IA para el análisis.
     """
 
     def __init__(self):
         super().__init__(name="MarketingLeadFinder_Intelligence")
         self.ai = OpenRouterClient()
 
-    def analyze_agency(self, name: str, description: str):
+    def analyze_agency(self, name: str, snippet: str):
         """
-        Usa IA para identificar 'puntos de dolor' y oportunidades de venta.
+        Usa IA para validar si es una agencia y sugerir automatizaciones.
+        Pausa de 10s para evitar 429 en OpenRouter Free.
         """
         prompt = f"""
-        Analiza esta Agencia de Marketing y dime 3 oportunidades de AUTOMATIZACIÓN DE PROCESOS
-        que les ayudarían a ahorrar dinero. Sé específico y profesional.
+        OBJETIVO: Validar agencias de marketing para servicios de automatización.
+        NOMBRE: {name}
+        DATOS DEL BUSCADOR: {snippet}
 
-        Agencia: {name}
-        Descripción/Contexto: {description}
+        REGLAS:
+        1. Si el sitio NO es una agencia de marketing (ej: Amazon, Google, una noticia, Mercado Libre), responde: RECHAZAR.
+        2. Si ES una agencia, devuelve 3 oportunidades de automatización técnica.
 
-        Si el nombre NO parece ser una agencia de marketing (ej: Amazon, una noticia sobre una película, etc.),
-        responde únicamente con la palabra: RECHAZAR.
-
-        Si es válida, responde en formato de lista corta:
-        1. [Oportunidad 1]
-        2. [Oportunidad 2]
-        3. [Oportunidad 3]
+        Respuesta:
         """
         try:
-            # Pausa agresiva para evitar 429 Rate Limit en modelos gratuitos de OpenRouter
-            log.debug("Aguardando 10s para cumplir con rate limit de IA gratuita...")
-            time.sleep(10)
-            return self.ai.complete(prompt, system_prompt="Eres un experto en consultoría de automatización B2B.")
+            time.sleep(12) # Pausa segura para cuotas gratuitas
+            return self.ai.complete(prompt, system_prompt="Consultor experto en agencias B2B.")
         except Exception as e:
-            log.warning(f"Error en IA (posible saturación): {e}")
+            log.warning(f"Error IA: {e}")
             return None
 
     @handle_errors
     def run(self, location: str = "Argentina"):
-        log.info(f"Iniciando búsqueda de leads profesionales en: {location}")
+        log.info(f"Iniciando búsqueda de agencias reales en: {location}")
 
         leads_processed = []
-        # Blacklist extendida para evitar "ruido" de noticias y publicidad
-        blacklist = [
-            "amazon", "mercado libre", "shopee", "tiendanube", "anuncio", "patrocinado",
-            "sponsored", "movie", "reboot", "cast", "trailer", "video", "noticia"
-        ]
+        # Lista negra para evitar anuncios corporativos típicos
+        forbidden = ["amazon", "google", "mercadolibre", "ebay", "noticia", "wikipedia", "youtube"]
 
         with Scraper(headless=True) as motor:
             page = motor.get_page()
-            # Búsqueda más específica
-            search_url = f"https://www.bing.com/search?q=lista+de+agencias+marketing+digital+{location}+portafolio"
+            # Usamos Bing con un query más profesional para evitar basura
+            search_url = f"https://www.bing.com/search?q=agencia+marketing+digital+{location}+official+website"
 
             if motor.safe_navigate(page, search_url):
                 motor.human_wait(5, 8)
 
-                log.info(f"Página Bing cargada: '{page.title()}'")
-
+                # Capturamos bloques de resultados orgánicos
                 results = page.query_selector_all("li.b_algo")
-                log.info(f"Resultados potenciales encontrados: {len(results)}")
+                log.info(f"Anatizando {len(results)} resultados potenciales...")
 
                 for res in results:
-                    if len(leads_processed) >= 5:
-                        break
+                    if len(leads_processed) >= 5: break
 
                     try:
                         title_el = res.query_selector("h2 a")
+                        snippet_el = res.query_selector(".b_caption p")
+
                         if not title_el: continue
 
-                        agency_name = title_el.text_content().strip()
-                        lower_name = agency_name.lower()
+                        name = title_el.text_content().strip()
+                        snippet = snippet_el.text_content().strip() if snippet_el else ""
 
-                        # Pre-filtro para no quemar tokens en basura
-                        if any(word in lower_name for word in blacklist):
-                            log.debug(f"Saltando ruido detectado: {agency_name}")
+                        # Pre-filtro veloz
+                        if any(f in name.lower() for f in forbidden):
+                            log.debug(f"Saltando ruido: {name}")
                             continue
 
-                        log.info(f"🤖 Validando con IA: {agency_name}")
+                        log.info(f"🔍 Validando lead: {name}")
 
-                        # Análisis por IA
-                        analysis = self.analyze_agency(agency_name, f"Agencia de marketing en {location}")
+                        # Validación inteligente
+                        analysis = self.analyze_agency(name, snippet)
 
                         if not analysis or "RECHAZAR" in analysis.upper():
-                            log.debug(f"Lead descartado por IA: {agency_name}")
+                            log.debug(f"IA rechazó el lead: {name}")
                             continue
 
-                        log.success(f"✅ Lead VALIDADO: {agency_name}")
+                        log.success(f"🌟 Lead de calidad confirmado: {name}")
 
                         leads_processed.append({
-                            "AGENCIA": agency_name,
+                            "AGENCIA": name,
                             "UBICACIÓN": location,
-                            "OPORTUNIDADES_IA": analysis.replace("\n", " ").strip()[:200] + "..."
+                            "OPORTUNIDADES_IA": analysis.replace("\n", " ").strip()[:250] + "..."
                         })
-                    except Exception as e:
-                        log.warning(f"Error procesando lead: {e}")
 
-                log.info(f"Procesamiento finalizado. Total leads validados: {len(leads_processed)}")
+                    except Exception as e:
+                        log.warning(f"Error procesando resultado: {e}")
+
+                log.info(f"Procesamiento finalizado. {len(leads_processed)} leads de calidad obtenidos.")
 
         if leads_processed:
+            # Almacenamiento
             df = DataEngine.create_dataframe(leads_processed)
             DataEngine.save_output(df, f"leads_mkt_{location.lower()}", format="csv")
 
+            # PDF
             pdf_path = os.path.abspath(f"data/processed/REPORTE_LEADS_MKT_{location.upper()}.pdf")
-            ReportGenerator.to_pdf(leads_processed, f"Análisis de leads: Agencias MKT {location}", pdf_path)
-            log.success(f"Reporte generado: {pdf_path}")
+            ReportGenerator.to_pdf(leads_processed, f"Leads de Alta Calidad: Agencias MKT {location}", pdf_path)
+            log.success(f"Reporte generado exitosamente.")
 
             return {"status": "success", "leads_found": len(leads_processed), "report": pdf_path}
 
