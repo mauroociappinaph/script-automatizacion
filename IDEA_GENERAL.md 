@@ -1,0 +1,42 @@
+🧰 Stack ideal para scripts (2026 – actualizado)
+
+🐍 Core & Package Management
+	•	Python 3.13 (Mejor performance, async optimizado, menos overhead)
+	•	uv ✅ (Estándar de facto para gestión de paquetes y entornos ultra-rápidos)
+	•	Pydantic V2 (Garantía de tipos y validación de datos en todo el pipeline)
+
+⸻
+
+🎭 Scraping / Navegación
+	•	Playwright (Estándar de estabilidad)
+	•	playwright-stealth (Evasión de bots avanzada y manejo de huellas digitales)
+	•	Gestión de Proxies rotativos (Integrado en el flujo de navegación)
+
+⏱️ Scheduling (simple, scripts)
+	•	schedule / Rocketry
+	•	Simple, legible y perfecto para jobs independientes.
+
+🧠 Análisis & Scoring (NLP Local + Hybrid AI)
+	•	spaCy (Industrial, ultra estable, ideal para balance performance/calidad)
+	•	OpenRouter ✅ (Uso exclusivo de **modelos gratuitos** como backup para tareas complejas que spaCy no cubra)
+	•	Detección de intención (verbos, frases tipo "busco", "necesito")
+	•	NER (Entidades: Empresa, Producto, Rol)
+
+⚡ Procesamiento de datos (High Performance)
+
+📝 Transmisión & Reportes
+	•	Logging Estructurado (Loguru/Structlog) para monitoreo profesional
+	•	python-docx (Reportes Word para revisión humana)
+	•	reportlab (PDFs profesionales finales)
+
+📂 Storage simple
+	•	CSV / JSON (Generados con los sinks de Polars)
+
+🌐 Capa de uso (Opcional - SRP)
+	•	FastAPI (Solo como disparador, paso de parámetros y descarga de outputs)
+	•	Los scripts NO dependen de FastAPI
+	•	Principio de Responsabilidad Única (Si sacas FastAPI, todo sigue funcionando)
+
+✔ Scripts independientes y reutilizables
+✔ Arquitectura enfocada en eficiencia de costos (No-LLM dependency para tareas simples)
+✔ Preparado para escalabilidad vía Docker / Cloud Run
