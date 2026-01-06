@@ -5,6 +5,7 @@ from core.utils.data_engine import DataEngine
 from core.utils.report_generator import ReportGenerator
 from core.utils.logger import log
 import os
+import time
 
 class MarketingLeadFinder(BaseScript):
     """
@@ -27,7 +28,7 @@ class MarketingLeadFinder(BaseScript):
         Agencia: {name}
         Descripción/Contexto: {description}
 
-        Si el nombre NO parece ser una agencia de marketing (ej: Amazon, Mercado Libre, un anuncio genérico),
+        Si el nombre NO parece ser una agencia de marketing (ej: Amazon, una noticia sobre una película, etc.),
         responde únicamente con la palabra: RECHAZAR.
 
         Si es válida, responde en formato de lista corta:
@@ -36,29 +37,37 @@ class MarketingLeadFinder(BaseScript):
         3. [Oportunidad 3]
         """
         try:
+            # Pausa agresiva para evitar 429 Rate Limit en modelos gratuitos de OpenRouter
+            log.debug("Aguardando 10s para cumplir con rate limit de IA gratuita...")
+            time.sleep(10)
             return self.ai.complete(prompt, system_prompt="Eres un experto en consultoría de automatización B2B.")
-        except Exception:
-            return "No se pudo realizar el análisis de IA para esta agencia."
+        except Exception as e:
+            log.warning(f"Error en IA (posible saturación): {e}")
+            return None
 
     @handle_errors
     def run(self, location: str = "Argentina"):
         log.info(f"Iniciando búsqueda de leads profesionales en: {location}")
 
         leads_processed = []
+        # Blacklist extendida para evitar "ruido" de noticias y publicidad
+        blacklist = [
+            "amazon", "mercado libre", "shopee", "tiendanube", "anuncio", "patrocinado",
+            "sponsored", "movie", "reboot", "cast", "trailer", "video", "noticia"
+        ]
 
         with Scraper(headless=True) as motor:
             page = motor.get_page()
-            # Bing suele ser más amigable con scrapers básicos
-            search_url = f"https://www.bing.com/search?q=agencias+marketing+digital+{location}"
+            # Búsqueda más específica
+            search_url = f"https://www.bing.com/search?q=lista+de+agencias+marketing+digital+{location}+portafolio"
 
             if motor.safe_navigate(page, search_url):
-                motor.human_wait(3, 5)
+                motor.human_wait(5, 8)
 
-                log.info(f"Página cargada: '{page.title()}'")
+                log.info(f"Página Bing cargada: '{page.title()}'")
 
-                # Buscamos los bloques de resultados orgánicos (li.b_algo)
                 results = page.query_selector_all("li.b_algo")
-                log.info(f"Bloques de resultados encontrados: {len(results)}")
+                log.info(f"Resultados potenciales encontrados: {len(results)}")
 
                 for res in results:
                     if len(leads_processed) >= 5:
@@ -66,20 +75,26 @@ class MarketingLeadFinder(BaseScript):
 
                     try:
                         title_el = res.query_selector("h2 a")
-                        if not title_el:
-                            continue
+                        if not title_el: continue
 
                         agency_name = title_el.text_content().strip()
-                        log.debug(f"Candidato detectado: '{agency_name}'")
+                        lower_name = agency_name.lower()
 
-                        # Análisis y Filtrado por IA (Más inteligente que keywords)
-                        analysis = self.analyze_agency(agency_name, f"Agencia de marketing digital en {location}")
-
-                        if "RECHAZAR" in analysis.upper():
-                            log.debug(f"Lead rechazado por la IA (No es agencia): {agency_name}")
+                        # Pre-filtro para no quemar tokens en basura
+                        if any(word in lower_name for word in blacklist):
+                            log.debug(f"Saltando ruido detectado: {agency_name}")
                             continue
 
-                        log.info(f"✅ Lead VALIDADO por IA: {agency_name}")
+                        log.info(f"🤖 Validando con IA: {agency_name}")
+
+                        # Análisis por IA
+                        analysis = self.analyze_agency(agency_name, f"Agencia de marketing en {location}")
+
+                        if not analysis or "RECHAZAR" in analysis.upper():
+                            log.debug(f"Lead descartado por IA: {agency_name}")
+                            continue
+
+                        log.success(f"✅ Lead VALIDADO: {agency_name}")
 
                         leads_processed.append({
                             "AGENCIA": agency_name,
@@ -92,20 +107,14 @@ class MarketingLeadFinder(BaseScript):
                 log.info(f"Procesamiento finalizado. Total leads validados: {len(leads_processed)}")
 
         if leads_processed:
-            # 1. Guardar CSV
             df = DataEngine.create_dataframe(leads_processed)
-            csv_path = DataEngine.save_output(df, f"leads_mkt_{location.lower()}", format="csv")
+            DataEngine.save_output(df, f"leads_mkt_{location.lower()}", format="csv")
 
-            # 2. Generar PDF
             pdf_path = os.path.abspath(f"data/processed/REPORTE_LEADS_MKT_{location.upper()}.pdf")
             ReportGenerator.to_pdf(leads_processed, f"Análisis de leads: Agencias MKT {location}", pdf_path)
-            log.success(f"Reporte PDF generado: {pdf_path}")
+            log.success(f"Reporte generado: {pdf_path}")
 
-            return {
-                "status": "success",
-                "leads_found": len(leads_processed),
-                "report": pdf_path
-            }
+            return {"status": "success", "leads_found": len(leads_processed), "report": pdf_path}
 
         return {"status": "no_leads_found"}
 
