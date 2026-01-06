@@ -1,8 +1,20 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Security, Depends
+from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from core.utils.logger import log
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY_NAME = "access_token"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+def get_api_key(api_key: str = Depends(api_key_header)):
+    if api_key == os.getenv("API_KEY"):
+        return api_key
+    raise HTTPException(status_code=403, detail="Acceso denegado: API Key inválida.")
 
 app = FastAPI(
     title="Ecosistema de Automatización 2026",
@@ -47,7 +59,7 @@ async def download_file(filename: str):
 
 # Importamos rutas de scripts aquí para evitar circulares
 # En un proyecto más grande usaríamos APIRouter de forma separada
-@app.post("/run-test")
+@app.post("/run-test", dependencies=[Depends(get_api_key)])
 async def run_test_automated(background_tasks: BackgroundTasks):
     """
     Dispara el script de prueba de reportes en segundo plano.
