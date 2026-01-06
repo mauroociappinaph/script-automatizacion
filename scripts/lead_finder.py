@@ -39,42 +39,55 @@ class MarketingLeadFinder(BaseScript):
 
     @handle_errors
     def run(self, location: str = "Argentina"):
-        log.info(f"Iniciando búsqueda de agencias de marketing en: {location}")
+        log.info(f"Iniciando búsqueda de leads profesionales en: {location}")
 
         leads_processed = []
 
         with Scraper(headless=True) as motor:
             page = motor.get_page()
-            search_url = f"https://www.google.com/search?q=mejores+agencias+marketing+digital+{location}"
+            # Bing suele ser más amigable con scrapers básicos
+            search_url = f"https://www.bing.com/search?q=agencias+marketing+digital+{location}"
 
             if motor.safe_navigate(page, search_url):
-                motor.human_wait(2, 4)
+                # Esperamos un poco para renderizado
+                motor.human_wait(3, 5)
 
-                # Extraemos nombres de agencias (basado en resultados de búsqueda)
-                elements = page.query_selector_all("h3")
+                log.info(f"Página cargada: '{page.title()}'")
 
-                for el in elements[:5]: # Procesamos el TOP 5 para el demo comercial
-                    agency_name = el.inner_text()
-                    if agency_name and len(agency_name) > 3:
-                        log.info(f"Analizando agencia: {agency_name}")
+                # Selector de títulos en Bing: li.b_algo h2 a
+                elements = page.query_selector_all("li.b_algo h2 a")
+                log.info(f"Leads encontrados: {len(elements)}")
 
-                        # Análisis de IA (Costo $0 con OpenRouter Free)
-                        analysis = self.analyze_agency(agency_name, f"Agencia de marketing en {location}")
+                for el in elements[:5]:
+                    try:
+                        agency_name = el.text_content().strip() # Cambiamos inner_text por text_content
+                        log.debug(f"Detectado: '{agency_name}'")
 
-                        leads_processed.append({
-                            "AGENCIA": agency_name,
-                            "UBICACIÓN": location,
-                            "OPORTUNIDADES_IA": analysis.replace("\n", " ").strip()[:200] + "..."
-                        })
+                        if agency_name and len(agency_name) > 3:
+                            log.info(f"Analizando potencial de: {agency_name}")
+
+                            # Análisis de IA
+                            analysis = self.analyze_agency(agency_name, f"Agencia de marketing en {location}")
+
+                            leads_processed.append({
+                                "AGENCIA": agency_name,
+                                "UBICACIÓN": location,
+                                "OPORTUNIDADES_IA": analysis.replace("\n", " ").strip()[:200] + "..."
+                            })
+                    except Exception as e:
+                        log.warning(f"Error procesando elemento: {e}")
+
+                log.info(f"Procesamiento finalizado. Total: {len(leads_processed)}")
 
         if leads_processed:
-            # 1. Almacenamos en Motor de Datos (CSV)
+            # 1. Guardar CSV
             df = DataEngine.create_dataframe(leads_processed)
-            csv_path = DataEngine.save_output(df, f"leads_mkt_{location.lower()}", format="csv")
+            DataEngine.save_output(df, f"leads_mkt_{location.lower()}", format="csv")
 
-            # 2. Generamos Reporte PDF Profesional
+            # 2. Generar PDF
             pdf_path = os.path.abspath(f"data/processed/REPORTE_LEADS_MKT_{location.upper()}.pdf")
-            ReportGenerator.to_pdf(leads_processed, f"Análisis de Oportunidades: Agencias MKT {location}", pdf_path)
+            ReportGenerator.to_pdf(leads_processed, f"Análisis de leads: Agencias MKT {location}", pdf_path)
+            log.success(f"Reporte PDF generado exitosamente: {pdf_path}")
 
             return {
                 "status": "success",
@@ -85,6 +98,5 @@ class MarketingLeadFinder(BaseScript):
         return {"status": "no_leads_found"}
 
 if __name__ == "__main__":
-    # Prueba real en Argentina
     finder = MarketingLeadFinder()
     finder.start(location="Argentina")
