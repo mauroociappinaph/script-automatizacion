@@ -58,16 +58,33 @@ class MarketingLeadFinder(BaseScript):
                 elements = page.query_selector_all("li.b_algo h2 a")
                 log.info(f"Leads encontrados: {len(elements)}")
 
-                for el in elements[:5]:
+                # Lista de palabras que suelen indicar anuncios o sitios no deseados
+                blacklist = ["amazon", "mercado libre", "shopee", "tiendanube", "anuncio", "patrocinado", "sponsored"]
+
+                for el in elements:
+                    if len(leads_processed) >= 5: # Límite para el demo
+                        break
+
                     try:
-                        agency_name = el.text_content().strip() # Cambiamos inner_text por text_content
-                        log.debug(f"Detectado: '{agency_name}'")
+                        agency_name = el.text_content().strip()
+                        lower_name = agency_name.lower()
+
+                        # 1. Filtro de Blacklist (Evitar Amazon, etc.)
+                        if any(word in lower_name for word in blacklist):
+                            log.debug(f"Saltando resultado (blacklist): {agency_name}")
+                            continue
+
+                        # 2. Validación de industria (Asegurar que sea marketing/agencia)
+                        keywords = ["agencia", "marketing", "digital", "publicidad", "ads", "seo", "branding"]
+                        if not any(key in lower_name for key in keywords):
+                            log.debug(f"Saltando resultado (no parece agencia): {agency_name}")
+                            continue
 
                         if agency_name and len(agency_name) > 3:
-                            log.info(f"Analizando potencial de: {agency_name}")
+                            log.info(f"✅ Lead válido encontrado: {agency_name}")
 
                             # Análisis de IA
-                            analysis = self.analyze_agency(agency_name, f"Agencia de marketing en {location}")
+                            analysis = self.analyze_agency(agency_name, f"Agencia de marketing digital en {location}")
 
                             leads_processed.append({
                                 "AGENCIA": agency_name,
